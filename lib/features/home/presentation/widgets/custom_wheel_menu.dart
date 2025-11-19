@@ -1,389 +1,343 @@
-/// 可展开的轮盘菜单组件（首页右下角）
-///
-/// 参考示例代码实现交互动画：
-/// - 中心按钮控制展开/收起
-/// - 展开后显示 1 / 2 / 3 / MORE / ALL 五个选项
-/// - 支持外部回调：全选、数字选项、MORE 子菜单
-import 'dart:math' as math; // 引入数学库，用于三角函数和常量计算
+/// 使用设计稿 PNG 作为背景的罗盘菜单组件，支持 5 个可点击分区与旋转指针。
+import 'dart:math' as math;
 
-import 'package:flutter/material.dart'; // Flutter UI 核心包
+import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart'; // 主题色定义
+const String _kCompassAssetPath = 'assets/images/more_card.png'; // 罗盘背景图
+const double _kInnerRadiusRatio = 0.55; // 内圈与外圈半径比，决定指针长度
+const double _kStartAngleDeg = -162; // ALL 扇区起始角（度单位，0° 为正右，顺时针为正）
+const double _kSegmentSweepDeg = 72; // 每个扇区的角度跨度
 
-/// 轮盘菜单组件
-///
-/// 该组件本身只负责展示和交互，具体业务通过回调向外暴露：
-/// - [onAllSelected]      选中 ALL 时触发
-/// - [onNumberSelected]   选中 1 / 2 / 3 时触发
-/// - [moreOptions]        MORE 子菜单的文案列表
-/// - [onMoreOptionSelected] 选中 MORE 子菜单项时触发
-class CustomWheelMenu extends StatefulWidget { // 轮盘菜单 StatefulWidget，处理展开/收起状态
-  /// 选中 ALL 时的回调
-  final VoidCallback? onAllSelected;
-
-  /// 选中数字 1 / 2 / 3 时的回调
-  final ValueChanged<int>? onNumberSelected;
-
-  /// MORE 子菜单的选项列表
-  final List<String> moreOptions;
-
-  /// 选中 MORE 子菜单中某个选项时的回调
-  final ValueChanged<String>? onMoreOptionSelected;
-
-  const CustomWheelMenu({ // 构造函数
-    super.key, // 传递可选的 key
-    this.onAllSelected, // 指向 ALL 回调
-    this.onNumberSelected, // 指向数字回调
-    this.moreOptions = const ['Option 1', 'Option 2', 'Option 3', 'Option 4'], // 默认 MORE 列表
-    this.onMoreOptionSelected, // MORE 子项回调
+class CustomWheelMenu extends StatefulWidget {
+  const CustomWheelMenu({
+    super.key,
+    this.onAllSelected,
+    this.onNumberSelected,
+    this.moreOptions = const ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
+    this.onMoreOptionSelected,
   });
 
+  final VoidCallback? onAllSelected;
+  final ValueChanged<int>? onNumberSelected;
+  final List<String> moreOptions;
+  final ValueChanged<String>? onMoreOptionSelected;
+
   @override
-  State<CustomWheelMenu> createState() => _CustomWheelMenuState(); // 生成状态对象
+  State<CustomWheelMenu> createState() => _CustomWheelMenuState();
 }
 
 class _CustomWheelMenuState extends State<CustomWheelMenu>
     with SingleTickerProviderStateMixin {
-  /// 是否展开轮盘
-  bool _isExpanded = false;
+  late final List<_CompassSegment> _segments; // 扇区配置
+  late final AnimationController _pointerController; // 指针旋转动画
+  Animation<double>? _pointerAnimation;
 
-  /// 当前选中的索引（0:1, 1:2, 2:3, 3:MORE, 4:ALL）
-  int _selectedIndex = 0;
-
-  /// 动画控制器（控制展开/收起）
-  late final AnimationController _animationController;
-
-  /// 缩放动画（0 → 1）
-  late final Animation<double> _scaleAnimation;
-
-  /// 透明度动画（0 → 1）
-  late final Animation<double> _opacityAnimation;
-
-  /// 轮盘选项配置
-  /// 文案只用于显示，具体含义由业务回调决定
-  /// 顺序与角度严格对应，确保箭头和按钮位置一致
-  final List<_WheelOption> _options = const [
-    _WheelOption(text: '1', angleDegrees: -144), // 选项 1，位于左上
-    _WheelOption(text: '2', angleDegrees: -72), // 选项 2，位于左偏上
-    _WheelOption(text: '3', angleDegrees: 0), // 选项 3，位于正右
-    _WheelOption(text: 'MORE', angleDegrees: 72), // MORE，位于右下
-    _WheelOption(text: 'ALL', angleDegrees: 144), // ALL，位于左下
-  ];
+  int _selectedIndex = 4; // 默认选中 MORE
+  late double _pointerAngle; // 当前指针弧度
 
   @override
   void initState() {
     super.initState();
-
-    _animationController = AnimationController( // 初始化动画控制器
-      vsync: this, // 使用当前 State 作为 ticker
-      duration: const Duration(milliseconds: 280), // 动画时长 280ms
-    );
-
-    _scaleAnimation = CurvedAnimation( // 缩放动画
-      parent: _animationController, // 依赖控制器
-      curve: Curves.easeOutBack, // 使用回弹曲线
-    );
-
-    _opacityAnimation = CurvedAnimation( // 透明度动画
-      parent: _animationController, // 使用相同控制器
-      curve: Curves.easeOut, // 平滑渐显
+    _segments = _buildSegments();
+    _pointerAngle = _segments[_selectedIndex].centerAngle;
+    _pointerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
     );
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _pointerController.dispose();
     super.dispose();
   }
 
-  /// 切换展开/收起
-  void _toggleExpand() {
-    setState(() {
-      _isExpanded = !_isExpanded;
-      if (_isExpanded) {
-        _animationController.forward();
-      } else {
-        _animationController.reverse();
-      }
+  List<_CompassSegment> _buildSegments() {
+    final double startRad = _degreesToRadians(_kStartAngleDeg);
+    final double sweepRad = _degreesToRadians(_kSegmentSweepDeg);
+    final labels = ['ALL', '1', '2', '3', 'MORE'];
+
+    return List.generate(labels.length, (index) {
+      final label = labels[index];
+      return _CompassSegment(
+        label: label,
+        startAngle: startRad + index * sweepRad,
+        sweepAngle: sweepRad,
+        type: switch (label) {
+          'ALL' => _SegmentType.all,
+          'MORE' => _SegmentType.more,
+          _ => _SegmentType.number,
+        },
+        numberValue: int.tryParse(label),
+      );
     });
   }
 
-  /// 处理选项点击
-  void _onOptionTap(int index) {
-    setState(() => _selectedIndex = index);
-
-    switch (index) {
-      case 0:
-        widget.onNumberSelected?.call(1);
-        break;
-      case 1:
-        widget.onNumberSelected?.call(2);
-        break;
-      case 2:
-        widget.onNumberSelected?.call(3);
-        break;
-      case 3:
-        _showMoreMenu();
-        break;
-      case 4:
-        widget.onAllSelected?.call();
-        break;
-    }
-
-    // 点击后可选自动收起，这里略微延迟，避免动画太突兀
-    Future<void>.delayed(const Duration(milliseconds: 220), () {
-      if (mounted && _isExpanded) {
-        _toggleExpand();
-      }
-    });
-  }
-
-  /// 显示 MORE 子菜单
-  void _showMoreMenu() {
-    if (widget.moreOptions.isEmpty) {
+  void _selectSegment(int index) {
+    if (_selectedIndex == index) {
+      _triggerCallbacks(index);
       return;
     }
+    final double targetAngle = _segments[index].centerAngle;
+    _pointerAnimation = Tween<double>(begin: _pointerAngle, end: targetAngle).animate(
+      CurvedAnimation(parent: _pointerController, curve: Curves.easeInOut),
+    )..addListener(() => setState(() => _pointerAngle = _pointerAnimation!.value));
+    _pointerController.forward(from: 0);
+    _selectedIndex = index;
+    _triggerCallbacks(index);
+  }
 
+  void _triggerCallbacks(int index) {
+    final segment = _segments[index];
+    switch (segment.type) {
+      case _SegmentType.all:
+        widget.onAllSelected?.call();
+        break;
+      case _SegmentType.number:
+        final value = segment.numberValue;
+        if (value != null) widget.onNumberSelected?.call(value);
+        break;
+      case _SegmentType.more:
+        _showMoreSheet();
+        break;
+    }
+  }
+
+  void _showMoreSheet() {
+    if (widget.moreOptions.isEmpty) return;
     showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
-        return SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade400,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+      builder: (_) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(height: 12),
-              // 标题可以后续接入本地化
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Text(
-                  'More options',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+            ),
+            const SizedBox(height: 12),
+            for (final option in widget.moreOptions)
+              ListTile(
+                title: Text(option),
+                onTap: () {
+                  widget.onMoreOptionSelected?.call(option);
+                  Navigator.of(context).pop();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildSegmentButtons() {
+    return List.generate(_segments.length, (index) {
+      final segment = _segments[index];
+      return Positioned.fill(
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            customBorder: _AnnularSegmentBorder(
+              startAngle: segment.startAngle,
+              sweepAngle: segment.sweepAngle,
+              innerRadiusRatio: _kInnerRadiusRatio,
+            ),
+            splashColor: Colors.white30,
+            highlightColor: Colors.white10,
+            onTap: () => _selectSegment(index),
+          ),
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const double defaultSize = 240;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double dimension = math.min(
+          constraints.hasBoundedWidth ? constraints.maxWidth : defaultSize,
+          constraints.hasBoundedHeight ? constraints.maxHeight : defaultSize,
+        );
+        return SizedBox(
+          width: dimension,
+          height: dimension,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Image.asset(
+                _kCompassAssetPath,
+                width: dimension,
+                height: dimension,
+                fit: BoxFit.contain,
+              ),
+              ..._buildSegmentButtons(),
+              IgnorePointer(
+                child: CustomPaint(
+                  size: Size.square(dimension),
+                  painter: _PointerPainter(
+                    pointerAngle: _pointerAngle,
+                    innerRadiusRatio: _kInnerRadiusRatio,
                   ),
                 ),
               ),
-              // 使用 for-in 保持顺序，同时便于后续扩展（如添加图标）
-              for (final option in widget.moreOptions)
-                ListTile(
-                  title: Text(option),
-                  onTap: () {
-                    widget.onMoreOptionSelected?.call(option);
-                    Navigator.of(context).pop();
-                  },
-                ),
             ],
           ),
         );
       },
     );
   }
+}
 
-  /// 箭头指示器（指向当前选中的选项）
-  Widget _buildArrowPointer() {
-    return Align(
-      alignment: const Alignment(0, -1.1),
-      child: AnimatedRotation(
-        duration: const Duration(milliseconds: 200),
-        turns: _options[_selectedIndex].angleDegrees / 360,
-        child: Icon(
-          Icons.arrow_downward,
-          size: 28,
-          color: Colors.black.withOpacity(0.8),
-          shadows: const [
-            Shadow(color: Colors.white, blurRadius: 2),
-          ],
-        ),
-      ),
+class _PointerPainter extends CustomPainter {
+  const _PointerPainter({
+    required this.pointerAngle,
+    required this.innerRadiusRatio,
+  });
+
+  final double pointerAngle;
+  final double innerRadiusRatio;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Offset center = size.center(Offset.zero);
+    final double innerRadius = size.width / 2 * innerRadiusRatio;
+    final double pointerLength = innerRadius * 0.95;
+    final double pointerWidth = innerRadius * 0.18;
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(pointerAngle);
+
+    final Paint pointerPaint = Paint()..color = Colors.white;
+    final Path pointerPath = Path()
+      ..moveTo(-pointerWidth * 0.2, 0)
+      ..lineTo(pointerLength, 0)
+      ..lineTo(pointerLength - pointerWidth, pointerWidth * 0.6)
+      ..lineTo(pointerLength - pointerWidth, -pointerWidth * 0.6)
+      ..close();
+    canvas.drawPath(pointerPath, pointerPaint);
+
+    final Path starPath = _buildStarPath(
+      center: Offset(-pointerWidth * 0.8, 0),
+      radius: pointerWidth * 0.5,
     );
+    canvas.drawPath(starPath, pointerPaint);
+
+    canvas.drawCircle(
+      Offset.zero,
+      pointerWidth * 0.35,
+      Paint()..color = Colors.orange.shade200,
+    );
+    canvas.restore();
   }
 
-  /// 中层选项按钮（1 / 2 / 3 / MORE / ALL）
-  Widget _buildOptions() {
-    const double wheelRadius = 90; // 相对于中心的半径
-    const double optionSize = 40;  // 每个按钮的尺寸
-
-    return AnimatedBuilder(
-      animation: _animationController,
-      builder: (context, child) {
-        // 使用透明度 + 缩放双动画，让展开/收起更顺滑
-        return Opacity(
-          opacity: _opacityAnimation.value,
-          child: Transform.scale(
-            scale: _scaleAnimation.value,
-            child: Stack(
-              alignment: Alignment.center,
-              children: _options.asMap().entries.map((entry) {
-                final index = entry.key;
-                final option = entry.value;
-                final angleRad = option.angleDegrees * math.pi / 180;
-
-                // 极坐标 → 直角坐标（以中心为原点）
-                final offset = Offset(
-                  wheelRadius * math.cos(angleRad),
-                  wheelRadius * math.sin(angleRad),
-                );
-
-                return Transform.translate(
-                  offset: offset,
-                  child: GestureDetector(
-                    onTap: () => _onOptionTap(index),
-                    child: Container(
-                      width: optionSize,
-                      height: optionSize,
-                      decoration: BoxDecoration(
-                        color: _resolveOptionColor(index),
-                        borderRadius: BorderRadius.circular(optionSize / 2),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 4,
-                            offset: Offset(1, 2),
-                          ),
-                        ],
-                        border: _selectedIndex == index
-                            ? Border.all(color: Colors.black87, width: 2)
-                            : null,
-                      ),
-                      child: Center(
-                        child: Text(
-                          option.text,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 底层圆环背景
-  Widget _buildBottomRing() {
-    return AnimatedBuilder(
-      animation: _animationController,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _opacityAnimation.value,
-          child: Transform.scale(
-            scale: _scaleAnimation.value,
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(
-                color: AppColors.lightOrange.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(110),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 10,
-                    offset: Offset(2, 4),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 中心按钮（控制展开/收起）
-  Widget _buildCenterButton() {
-    return GestureDetector(
-      onTap: _toggleExpand,
-      child: Container(
-        width: 72,
-        height: 72,
-        decoration: BoxDecoration(
-          color: AppColors.orangeMonster,
-          borderRadius: BorderRadius.circular(36),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black38,
-              blurRadius: 8,
-              offset: Offset(3, 3),
-            ),
-          ],
-        ),
-        child: Center(
-          child: Icon(
-            _isExpanded ? Icons.close : Icons.menu,
-            size: 30,
-            color: AppColors.white,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 根据索引返回对应按钮颜色（使用主题色系）
-  Color _resolveOptionColor(int index) {
-    switch (index) {
-      case 0:
-        return Colors.redAccent;
-      case 1:
-        return Colors.blueAccent;
-      case 2:
-        return Colors.greenAccent;
-      case 3:
-        return AppColors.orangeMonster;
-      case 4:
-      default:
-        return AppColors.purpleBowTie;
+  Path _buildStarPath({required Offset center, required double radius}) {
+    final Path path = Path();
+    const int points = 5;
+    for (int i = 0; i <= points * 2; i++) {
+      final double angle = i * math.pi / points;
+      final double currentRadius = i.isEven ? radius : radius / 2;
+      final Offset point = Offset(
+        center.dx + currentRadius * math.cos(angle),
+        center.dy + currentRadius * math.sin(angle),
+      );
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
     }
+    return path..close();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 240,
-      height: 240,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (_isExpanded) _buildBottomRing(),
-          if (_isExpanded) _buildOptions(),
-          if (_isExpanded) _buildArrowPointer(),
-          _buildCenterButton(),
-        ],
-      ),
-    );
+  bool shouldRepaint(covariant _PointerPainter oldDelegate) {
+    return oldDelegate.pointerAngle != pointerAngle;
   }
 }
 
-/// 内部使用的轮盘选项模型
-class _WheelOption {
-  /// 按钮上显示的文字
-  final String text;
-
-  /// 该选项距离 X 轴的角度（度数制，0° 代表朝右）
-  /// 顺时针正方向，便于与设计稿保持一致
-  final double angleDegrees;
-
-  const _WheelOption({
-    required this.text,
-    required this.angleDegrees,
+class _AnnularSegmentBorder extends ShapeBorder {
+  const _AnnularSegmentBorder({
+    required this.startAngle,
+    required this.sweepAngle,
+    required this.innerRadiusRatio,
   });
+
+  final double startAngle;
+  final double sweepAngle;
+  final double innerRadiusRatio;
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) => _createPath(rect);
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) => _createPath(rect);
+
+  Path _createPath(Rect rect) {
+    final Offset center = rect.center;
+    final double outerRadius = rect.width / 2;
+    final double innerRadius = outerRadius * innerRadiusRatio;
+    final Rect outerRect = Rect.fromCircle(center: center, radius: outerRadius);
+    final Rect innerRect = Rect.fromCircle(center: center, radius: innerRadius);
+
+    return Path()
+      ..arcTo(outerRect, startAngle, sweepAngle, false)
+      ..arcTo(innerRect, startAngle + sweepAngle, -sweepAngle, false)
+      ..close();
+  }
+
+  @override
+  EdgeInsetsGeometry get dimensions => EdgeInsets.zero;
+
+  @override
+  ShapeBorder scale(double t) => _AnnularSegmentBorder(
+        startAngle: startAngle,
+        sweepAngle: sweepAngle,
+        innerRadiusRatio: innerRadiusRatio,
+      );
+
+  @override
+  ShapeBorder lerpFrom(ShapeBorder? a, double t) => this;
+
+  @override
+  ShapeBorder lerpTo(ShapeBorder? b, double t) => this;
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
+    // 不需要真正绘制边框，仅使用 Path 进行命中测试，故留空
+  }
 }
+
+class _CompassSegment {
+  const _CompassSegment({
+    required this.label,
+    required this.startAngle,
+    required this.sweepAngle,
+    required this.type,
+    this.numberValue,
+  });
+
+  final String label;
+  final double startAngle;
+  final double sweepAngle;
+  final _SegmentType type;
+  final int? numberValue;
+
+  double get centerAngle => startAngle + sweepAngle / 2;
+}
+
+enum _SegmentType { all, number, more }
+
+double _degreesToRadians(double degrees) => degrees * math.pi / 180;
+
