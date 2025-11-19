@@ -9,7 +9,7 @@ import 'widgets/background_pattern_widget.dart';
 import 'widgets/monster_frame_widget.dart';
 import 'widgets/alphabet_display_widget.dart';
 import 'widgets/word_card_widget.dart';
-import 'widgets/navigation_wheel_widget.dart';
+import 'widgets/custom_wheel_menu.dart';
 
 /// 首页组件
 /// 
@@ -110,10 +110,24 @@ class HomePage extends StatelessWidget {
           ),
           
           // ==================== 导航层 ====================
-          /// 导航轮组件
-          /// 位于右下角，用于切换不同等级和功能
-          /// 包含：ALL、1、2、3、MORE 等选项
-          const NavigationWheelWidget(),
+          /// 右下角轮盘菜单组件
+          /// 参考示例代码，实现可展开的 1 / 2 / 3 / MORE / ALL 轮盘交互
+          Positioned(
+            right: 20,
+            bottom: 24,
+            child: CustomWheelMenu(
+              onAllSelected: () {
+                // TODO: 处理 ALL 选项的点击，例如切换到全部关卡
+              },
+              onNumberSelected: (number) {
+                // TODO: 根据 number 切换不同难度或关卡
+              },
+              moreOptions: const ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
+              onMoreOptionSelected: (option) {
+                // TODO: 处理 MORE 子菜单点击
+              },
+            ),
+          ),
         ],
       ),
     );
