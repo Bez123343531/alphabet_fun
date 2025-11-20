@@ -1,5 +1,5 @@
 name: alphabet_fun
-description: "A new Flutter project."
+description: "一个有趣的字母教育应用，通过游戏化的方式帮助用户学习英文字母和单词。应用包含怪物主题的界面设计，轮盘导航菜单，以及丰富的交互元素。"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -58,6 +58,9 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/images/shouye.png
+    - assets/images/hong.png
+    - assets/images/zhangyu.png
     - assets/images/more_card.png
 
   # An image asset can refer to one or more resolution-specific "variants", see

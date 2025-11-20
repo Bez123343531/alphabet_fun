@@ -1,12 +1,13 @@
-/// 使用设计稿 PNG 作为背景的罗盘菜单组件，支持 5 个可点击分区与旋转指针。
+/// 基于设计稿 PNG 的罗盘菜单，支持 5 个透明点击区与旋转指针。
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-const String _kCompassAssetPath = 'assets/images/more_card.png'; // 罗盘背景图
-const double _kInnerRadiusRatio = 0.55; // 内圈与外圈半径比，决定指针长度
-const double _kStartAngleDeg = -162; // ALL 扇区起始角（度单位，0° 为正右，顺时针为正）
-const double _kSegmentSweepDeg = 72; // 每个扇区的角度跨度
+const String _kCompassAssetPath = 'assets/images/more_card.png';
+const double _kInnerRadiusRatio = 0.55;
+const double _kStartAngleDeg = -162;
+const double _kSegmentSweepDeg = 72;
 
 class CustomWheelMenu extends StatefulWidget {
   const CustomWheelMenu({
@@ -28,12 +29,12 @@ class CustomWheelMenu extends StatefulWidget {
 
 class _CustomWheelMenuState extends State<CustomWheelMenu>
     with SingleTickerProviderStateMixin {
-  late final List<_CompassSegment> _segments; // 扇区配置
-  late final AnimationController _pointerController; // 指针旋转动画
+  late final List<_CompassSegment> _segments;
+  late final AnimationController _pointerController;
   Animation<double>? _pointerAnimation;
 
-  int _selectedIndex = 4; // 默认选中 MORE
-  late double _pointerAngle; // 当前指针弧度
+  int _selectedIndex = 4;
+  late double _pointerAngle;
 
   @override
   void initState() {
@@ -56,9 +57,8 @@ class _CustomWheelMenuState extends State<CustomWheelMenu>
     final double startRad = _degreesToRadians(_kStartAngleDeg);
     final double sweepRad = _degreesToRadians(_kSegmentSweepDeg);
     final labels = ['ALL', '1', '2', '3', 'MORE'];
-
-    return List.generate(labels.length, (index) {
-      final label = labels[index];
+    return List<_CompassSegment>.generate(labels.length, (index) {
+      final String label = labels[index];
       return _CompassSegment(
         label: label,
         startAngle: startRad + index * sweepRad,
@@ -79,9 +79,14 @@ class _CustomWheelMenuState extends State<CustomWheelMenu>
       return;
     }
     final double targetAngle = _segments[index].centerAngle;
-    _pointerAnimation = Tween<double>(begin: _pointerAngle, end: targetAngle).animate(
+    _pointerAnimation = Tween<double>(
+      begin: _pointerAngle,
+      end: targetAngle,
+    ).animate(
       CurvedAnimation(parent: _pointerController, curve: Curves.easeInOut),
-    )..addListener(() => setState(() => _pointerAngle = _pointerAnimation!.value));
+    )..addListener(() {
+        setState(() => _pointerAngle = _pointerAnimation!.value);
+      });
     _pointerController.forward(from: 0);
     _selectedIndex = index;
     _triggerCallbacks(index);
@@ -95,7 +100,9 @@ class _CustomWheelMenuState extends State<CustomWheelMenu>
         break;
       case _SegmentType.number:
         final value = segment.numberValue;
-        if (value != null) widget.onNumberSelected?.call(value);
+        if (value != null) {
+          widget.onNumberSelected?.call(value);
+        }
         break;
       case _SegmentType.more:
         _showMoreSheet();
@@ -140,7 +147,7 @@ class _CustomWheelMenuState extends State<CustomWheelMenu>
   }
 
   List<Widget> _buildSegmentButtons() {
-    return List.generate(_segments.length, (index) {
+    return List<Widget>.generate(_segments.length, (index) {
       final segment = _segments[index];
       return Positioned.fill(
         child: Material(
@@ -151,13 +158,29 @@ class _CustomWheelMenuState extends State<CustomWheelMenu>
               sweepAngle: segment.sweepAngle,
               innerRadiusRatio: _kInnerRadiusRatio,
             ),
-            splashColor: Colors.white30,
-            highlightColor: Colors.white10,
+            splashColor: Colors.white.withOpacity(0.3),
+            highlightColor: Colors.white.withOpacity(0.2),
             onTap: () => _selectSegment(index),
+            onTapDown: (_) => _handleTapDown(index),
+            onTapUp: (_) => _handleTapUp(index),
+            onTapCancel: _handleTapCancel,
           ),
         ),
       );
     });
+  }
+
+  void _handleTapDown(int index) {
+    // 触觉反馈（如果设备支持）
+    HapticFeedback.lightImpact();
+  }
+
+  void _handleTapUp(int index) {
+    // 恢复轮盘菜单的正常状态
+  }
+
+  void _handleTapCancel() {
+    // 恢复轮盘菜单的正常状态
   }
 
   @override
@@ -290,7 +313,6 @@ class _AnnularSegmentBorder extends ShapeBorder {
     final double innerRadius = outerRadius * innerRadiusRatio;
     final Rect outerRect = Rect.fromCircle(center: center, radius: outerRadius);
     final Rect innerRect = Rect.fromCircle(center: center, radius: innerRadius);
-
     return Path()
       ..arcTo(outerRect, startAngle, sweepAngle, false)
       ..arcTo(innerRect, startAngle + sweepAngle, -sweepAngle, false)
@@ -315,7 +337,7 @@ class _AnnularSegmentBorder extends ShapeBorder {
 
   @override
   void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
-    // 不需要真正绘制边框，仅使用 Path 进行命中测试，故留空
+    // 无需绘制实体，仅用于定义 InkWell 命中区域
   }
 }
 
@@ -340,4 +362,3 @@ class _CompassSegment {
 enum _SegmentType { all, number, more }
 
 double _degreesToRadians(double degrees) => degrees * math.pi / 180;
-
