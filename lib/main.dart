@@ -39,7 +39,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Alphabet Fun',              // 应用标题
       theme: AppTheme.lightTheme,         // 使用应用主题配置（Material 3）
-      home: const HomePage(),             // 设置首页为 HomePage
+      home: const HomePage(
+        showDebugOverlay: true,           // 启用调试坐标网格
+      ),                                  // 设置首页为 HomePage
       debugShowCheckedModeBanner: false, // 隐藏调试横幅（右上角的 "DEBUG" 标签）
     );
   }
