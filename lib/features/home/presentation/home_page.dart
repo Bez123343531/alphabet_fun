@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
+import 'widgets/transparent_image_widget.dart';
 
 /// 首页组件
 /// 
@@ -73,18 +74,12 @@ class HomePage extends StatelessWidget {
               height: 100,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+                // Removed BoxShadow to prevent black shadow artifacts on transparent images
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(15),
-                child: Image(
-                  image: AssetImage('assets/images/hong.png'),
+                child: TransparentImage(
+                  imagePath: 'assets/images/hong.png',
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
@@ -138,18 +133,12 @@ class HomePage extends StatelessWidget {
               height: 250,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+                // Removed BoxShadow to prevent black shadow artifacts on transparent images
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(15),
-                child: Image(
-                  image: AssetImage('assets/images/zhangyu.png'),
+                child: TransparentImage(
+                  imagePath: 'assets/images/zhangyu.png',
                   fit: BoxFit.cover,
                   filterQuality: FilterQuality.high,
                   errorBuilder: (context, error, stackTrace) {
@@ -173,7 +162,7 @@ class HomePage extends StatelessWidget {
           /// 将 more_card.png 指定坐标点对齐在背景上方
           Positioned(
             left: 1945, // 2421 - 1009
-            top: 1001, // 1399 - 1009
+            top: 1000, // 1399 - 1009
             child: GestureDetector(
               onTap: () {
                 // TODO: 处理 more_card.png 点击事件
@@ -183,20 +172,14 @@ class HomePage extends StatelessWidget {
                 height: 580,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
+                  // Removed BoxShadow to prevent black shadow artifacts on transparent images
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
-                  child: Image(
-                    image: AssetImage('assets/images/more_card.png'),
+                  child: TransparentImage(
+                    imagePath: 'assets/images/more_card.png',
                     fit: BoxFit.cover,
-                  filterQuality: FilterQuality.high,
+                    filterQuality: FilterQuality.high,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
                         color: AppColors.lightBlue,

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'transparent_image_widget.dart';
 
 const String _kCompassAssetPath = 'assets/images/more_card.png';
 const double _kInnerRadiusRatio = 0.55;
@@ -198,11 +199,13 @@ class _CustomWheelMenuState extends State<CustomWheelMenu>
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Image.asset(
-                _kCompassAssetPath,
+              SizedBox(
                 width: dimension,
                 height: dimension,
-                fit: BoxFit.contain,
+                child: TransparentImage(
+                  imagePath: _kCompassAssetPath,
+                  fit: BoxFit.contain,
+                ),
               ),
               ..._buildSegmentButtons(),
               IgnorePointer(
